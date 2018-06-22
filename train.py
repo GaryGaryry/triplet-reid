@@ -19,8 +19,33 @@ import loss
 from nets import NET_CHOICES
 from heads import HEAD_CHOICES
 
+from tensorflow.python import debug as tf_debug
 
 parser = ArgumentParser(description='Train a ReID network.')
+
+# debug
+
+parser.add_argument(
+      "--debug",
+      # type="bool",
+      type=bool,
+      nargs="?",
+      const=True,
+      default=False,
+      help="Use debugger to track down bad values during training. "
+      "Mutually exclusive with the --tensorboard_debug_address flag.")
+parser.add_argument(
+    "--ui_type",
+    type=str,
+    default="curses",
+    help="Command-line user interface type (curses | readline)")
+parser.add_argument(
+    "--tensorboard_debug_address",
+    type=str,
+    default=None,
+    help="Connect to the TensorBoard Debugger Plugin backend specified by "
+         "the gRPC address (e.g., localhost:1234). Mutually exclusive with the "
+         "--debug flag.")
 
 # Required.
 
@@ -362,6 +387,17 @@ def main():
             # But if we're starting from scratch, we may need to load some
             # variables from the pre-trained weights, and random init others.
             sess.run(tf.global_variables_initializer())
+
+            if args.debug and args.tensorboard_debug_address:
+                raise ValueError(
+                    "The --debug and --tensorboard_debug_address flags are mutually "
+                    "exclusive.")
+            if args.debug:
+                sess = tf_debug.LocalCLIDebugWrapperSession(sess, ui_type=args.ui_type)
+            elif args.tensorboard_debug_address:
+                sess = tf_debug.TensorBoardDebugWrapperSession(
+                    sess, args.tensorboard_debug_address)
+
             if args.initial_checkpoint is not None:
                 saver = tf.train.Saver(model_variables)
                 saver.restore(sess, args.initial_checkpoint)
